@@ -1,191 +1,285 @@
 package game;
 
-import java.awt.Dimension;
-import java.awt.Graphics;
-import javax.swing.JComponent;
-import javax.swing.JFrame;
+import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Rectangle;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
+import java.awt.RenderingHints;
+import java.awt.Robot;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.InputEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseWheelEvent;
+import java.util.Vector;
+
+import javax.swing.ActionMap;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.KeyStroke;
+
+//Each circle in snake body
+class snake_node{
+ int centerx, centery, radius, pcenterx, pcentery;
+ snake_node(){
+  
+  radius = 10;
+ }
+}
+//actual gui for game
+public class SummativeGame extends JFrame {
+ snake panel = null;
+ JMenuBar menu = null;
+ JMenu controls = null;
+ JMenuItem play = null;
+ JMenuItem restart = null;
+ JMenuItem instructions = null;
+ boolean firstplay = true;
+ SummativeGame(){
+  this.setResizable(false);
+  menu = new JMenuBar();
+  play = new JMenuItem("Play");
+  controls = new JMenu("Controls");  
+  restart = new JMenuItem("Restart");
+  instructions = new JMenuItem("Instructions");
+  restart.setMnemonic(KeyEvent.VK_R);
+  restart.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_R, InputEvent.CTRL_MASK));
+  restart.setMnemonic(KeyEvent.VK_I);
+  instructions.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_I, InputEvent.CTRL_MASK));
+  play.setMnemonic(KeyEvent.VK_P);
+  play.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_P, InputEvent.CTRL_MASK));
+  controls.add(play);
+  controls.add(restart);
+  controls.add(instructions);
+  menu.add(controls);
+  this.setJMenuBar(menu);
+  //GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().setFullScreenWindow(this);
+  panel = new snake();
+  this.setLayout(new BorderLayout());
+  this.setMinimumSize(new Dimension(800, 595));
+  panel.dim = this.getSize();
+  this.add(panel, BorderLayout.CENTER);
+  this.setLocationRelativeTo(null);
+  this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+  play.addActionListener(new ActionListener(){public void actionPerformed(ActionEvent eee){play();}});
+  restart.addActionListener(new ActionListener(){public void actionPerformed(ActionEvent ee){restart();}});
+  instructions.addActionListener(new ActionListener(){public void actionPerformed(ActionEvent ee){instruct();}});
+  this.addKeyListener(new KeyAdapter(){public void keyPressed(KeyEvent e){panel.keyPress(e);}});      
+  this.setVisible(true);
+  this.pack();
+ }
+        //function to start thread for starting game
+ public void play(){
+  if(firstplay){
+   panel.t.start();
+   firstplay = false;
+   play.setEnabled(false);
+  }
+ }
+        //function for restarting game, it will resize the snake to its initial position and initial length
+ public void restart(){
+  int pos = 0;
+  panel.vector.clear();
+  snake_node[] snode = new snake_node[5];
+  for(int i =0; i < 5; i++){
+   snode[i] = new snake_node();
+   snode[i].centerx = 200;
+   snode[i].centery = 150-pos;
+   snode[i].pcentery = 150-pos;
+   snode[i].pcenterx = 200;
+   panel.vector.add(snode[i]);
+   pos = pos+10;
+  }
+  panel.gameover = false;
+  panel.dir = 'D';
+  panel.repaint();
+ }
+        //function to be called on the click of instructions
+ public void instruct(){
+  JOptionPane.showMessageDialog(this, "1. Ctrl+R - Restart \n2. S - Increase Snake speed \n3. D - Decrease Snake speed \n4. LEFT - Turn left \n5. RIGHT - Turn right \n6. UP - go up \n7. DOWN - go down \n8. Ctrl+I - to view Instructions", "Instructions",1);
+ }
+ public static void main(String[] ar){
+  new SummativeGame();// object of the game class
+ }
+}
+
+//a panel where all the drawings take place and it is embedded into JFrame
+class snake extends JPanel implements Runnable{
+ Vector<snake_node> vector = null;   //vector which will hold all the beads of snake body
+ snake_node[] snode = null;
+ int centx = 0, centy = 0;
+ int inc = 10, pos = 0;
+ char dir = 'D';
+ Dimension dim = null;
+ Thread t = null;
+ boolean b = true, gameover = false;
+ snake(){
+  vector = new Vector();
+  snode = new snake_node[5];
+  for(int i =0; i < 5; i++){
+   snode[i] = new snake_node();
+   snode[i].centerx = 200;
+   snode[i].centery = 150-pos;
+   snode[i].pcentery = 150-pos;
+   snode[i].pcenterx = 200;
+   vector.add(snode[i]);
+   pos = pos+10;
+  }
+  t = new Thread(this);
+  this.setLayout(null);
+  this.setBackground(Color.black);
+  this.setDoubleBuffered(true);
+  dim = this.getSize();
+  this.addKeyListener(new KeyAdapter(){public void keyTyped(KeyEvent e){keyPress(e);}});
+  this.setVisible(true);
+ }
+ int time = 70;
+ boolean gamepause = true;
+        //setting keyevents 
+ void keyPress(KeyEvent e){
+  if(e.getKeyCode() == KeyEvent.VK_DOWN){
+   if(dir != 'U')
+    dir = 'D';
+  }
+  else if(e.getKeyCode() == KeyEvent.VK_UP){
+   if(dir != 'D')
+    dir = 'U';
+  }
+  else if(e.getKeyCode() == KeyEvent.VK_LEFT){
+   if(dir != 'R')
+    dir = 'L';
+  }
+  else if(e.getKeyCode() == KeyEvent.VK_RIGHT){
+   if(dir != 'L')
+    dir = 'R';
+  }
+  else if(e.getKeyCode() == KeyEvent.VK_ESCAPE)
+   System.exit(0);
+  else if(e.getKeyCode() == KeyEvent.VK_SPACE){
+   if(gamepause){
+    t.suspend();
+    gamepause = false;
+   }
+   else{
+    t.resume();
+    gamepause = true;
+   }
+  }
+  else if(e.getKeyCode() == KeyEvent.VK_S){
+   time--;
+  }
+  else if(e.getKeyCode() == KeyEvent.VK_D){
+   time++;
+  }
+  
+ }
+ //generating random position of food
+ int foodx = 20+(int)(Math.random()*56)*10;
+ int foody = 20+(int)(Math.random()*52)*10;
+ int score = 0;
+ public void paintComponent(Graphics g){
+  super.paintComponent(g);
+  Graphics2D g2 = (Graphics2D)g;
+  score = vector.size()-5;
+  g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+  int red = 30+(int)(Math.random()*220);
+  int green = 30+(int)(Math.random()*220);
+  int blue = 30+(int)(Math.random()*220); 
+  g2.setColor(Color.red);
+  g2.drawRect(600, 0, 199, 550);
+  g2.setColor(Color.orange);
+  g2.setFont(new Font("bauhaus 93", 1, 50));
+  g2.drawString("Snake", 630, 80);
+  g2.setFont(new Font("Arial", 1, 20));
+  g2.drawString("Score: "+score,650, 230);
+  g2.fillRect(0, 0, dim.width-200, dim.height);
+  g2.setColor(Color.black);
+  g2.fillRect(10, 10, dim.width-220, dim.height-65);
+  g2.setColor(new Color(red, green, blue));
+  g2.fillOval(foodx, foody, 10, 10);
+  g2.setColor(Color.red);
+                //if game over then it will be display on screen
+  if(gameover){
+   g2.setFont(new Font("Monotype Corsiva", 1, 120));
+   g2.drawString("Game Over", 30, 300);
+  }
+  else{   
+   g2.fillOval(vector.get(0).centerx, vector.get(0).centery, vector.get(0).radius, vector.get(0).radius);
+   for(int i=1; i < vector.size(); i++){
+    g2.fillOval(vector.get(i).centerx, vector.get(i).centery, vector.get(i).radius, vector.get(i).radius);
+    vector.get(i).pcenterx = vector.get(i).centerx;
+    vector.get(i).pcentery = vector.get(i).centery;
+    vector.get(i).centerx = vector.get(i-1).pcenterx;
+    vector.get(i).centery = vector.get(i-1).pcentery;
+   }
+  }  
+ }
+        //important function which will see collision of snake with wall or itself
+ void checkOutOfBounds(int x, int y){
+  if(x < 10 || x > dim.width-220 || y < 10 || y > dim.height-61){
+   gameover = true;
+   try{Thread.sleep(1000);}catch(Exception e){}
+   repaint();
+  }
+  else if(x==foodx && y==foody){
+   snake_node snode = new snake_node();
+   snode.centerx = vector.get(vector.size()-1).pcenterx;
+   snode.centery = vector.get(vector.size()-1).pcentery;
+   vector.add(snode);
+   foodx = 20+(int)(Math.random()*56)*10;
+   foody = 20+(int)(Math.random()*52)*10;   
+  }
+  for(int i=1; i < vector.size(); i++){
+   if(x == vector.get(i).centerx && y == vector.get(i).centery){
+    gameover = true;
+    try{Thread.sleep(1000);}catch(Exception e){}
+    repaint();
+   }
+  }
+ }
  
-/**
- *
- * @author ${user}
- */
-public class SummativeGame extends JComponent {
- 
-    // Height and Width of our game
-    static final int WIDTH = 800;
-    static final int HEIGHT = 600;
-    
-    //Title of the window
-    String title = "My Game";
- 
-    // sets the framerate and delay for our game
-    // you just need to select an approproate framerate
-    long desiredFPS = 60;
-    long desiredTime = (1000) / desiredFPS;
- 
- 
-    // YOUR GAME VARIABLES WOULD GO HERE
-    Rectangle player = new Rectangle(WIDTH - 0, 0, 25, 100);
-    boolean downPress;
-    boolean upPress;
-    boolean leftPress;
-    boolean rightPress;
-    
- 
-    // GAME VARIABLES END HERE   
- 
-    
-    // Constructor to create the Frame and place the panel in
-    // You will learn more about this in Grade 12 :)
-    public SummativeGame(){
-        // creates a windows to show my game
-        JFrame frame = new JFrame(title);
- 
-        // sets the size of my game
-        this.setPreferredSize(new Dimension(WIDTH, HEIGHT));
-        // adds the game to the window
-        frame.add(this);
- 
-        // sets some options and size of the window automatically
-        frame.setResizable(false);
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.pack();
-        // shows the window to the user
-        frame.setVisible(true);
-        
-        // add listeners for keyboard and mouse
-        frame.addKeyListener(new Keyboard());
-        Mouse m = new Mouse();
-        
-        this.addMouseMotionListener(m);
-        this.addMouseWheelListener(m);
-        this.addMouseListener(m);
-    }
-    
-    // drawing of the game happens in here
-    // we use the Graphics object, g, to perform the drawing
-    // NOTE: This is already double buffered!(helps with framerate/speed)
-    @Override
-    public void paintComponent(Graphics g) {
-        // always clear the screen first!
-        g.clearRect(0, 0, WIDTH, HEIGHT);
- 
-        // GAME DRAWING GOES HERE
-        g.fillRect(0, 0, WIDTH, HEIGHT);
-        
-        // GAME DRAWING ENDS HERE
-    }
- 
- 
-    // This method is used to do any pre-setup you might need to do
-    // This is run before the game loop begins!
-    public void  preSetup(){
-       // Any of your pre setup before the loop starts should go here
- 
-       
-    }
- 
-    // The main game loop
-    // In here is where all the logic for my game will go
-    public void run() {
-        // Used to keep track of time used to draw and update the game
-        // This is used to limit the framerate later on
-        long startTime;
-        long deltaTime;
- 
-        preSetup();
- 
-        // the main game loop section
-        // game will end if you set done = false;
-        boolean done = false;
-        while (!done) {
-            // determines when we started so we can keep a framerate
-            startTime = System.currentTimeMillis();
- 
-            // all your game rules and move is done in here
-            // GAME LOGIC STARTS HERE 
-            
-            
-            // GAME LOGIC ENDS HERE 
-            // update the drawing (calls paintComponent)
-            repaint();
- 
-            // SLOWS DOWN THE GAME BASED ON THE FRAMERATE ABOVE
-            // USING SOME SIMPLE MATH
-            deltaTime = System.currentTimeMillis() - startTime;
-            try {
-                if (deltaTime > desiredTime) {
-                    //took too much time, don't wait
-                    Thread.sleep(1);
-                } else {
-                    // sleep to make up the extra time
-                    Thread.sleep(desiredTime - deltaTime);
-                }
-            } catch (Exception e) {
-            };
-        }
-    }
- 
-    
- 
-    // Used to implement any of the Mouse Actions
-    private class Mouse extends MouseAdapter {
-        // if a mouse button has been pressed down
-        @Override
-        public void mousePressed(MouseEvent e){
-            
-        }
-        
-        // if a mouse button has been released
-        @Override
-        public void mouseReleased(MouseEvent e){
-            
-        }
-        
-        // if the scroll wheel has been moved
-        @Override
-        public void mouseWheelMoved(MouseWheelEvent e){
-            
-        }
- 
-        // if the mouse has moved positions
-        @Override
-        public void mouseMoved(MouseEvent e){
-            
-        }
-    }
-    
-    // Used to implements any of the Keyboard Actions
-    private class Keyboard extends KeyAdapter{
-        // if a key has been pressed down
-        @Override
-        public void keyPressed(KeyEvent e){
-            
-        }
-        
-        // if a key has been released
-        @Override
-        public void keyReleased(KeyEvent e){
-            
-        }
-    }
-    
-    
-    /**
-     * @param args the command line arguments
-     */
-    public static void main(String[] args) {
-        // creates an instance of my game
-        SummativeGame game = new SummativeGame();
-                
-        // starts the game loop
-        game.run();
-    }
+ public void run(){
+  
+  while (true){
+   switch(dir){
+    case 'L':
+     vector.get(0).centerx = (vector.get(0).centerx-inc);
+     vector.get(0).pcenterx = vector.get(0).centerx;
+     checkOutOfBounds(vector.get(0).centerx, vector.get(0).centery);
+     repaint();
+     break;
+    case 'R':     
+     vector.get(0).centerx = (vector.get(0).centerx+inc);
+     vector.get(0).pcenterx = vector.get(0).centerx;
+     checkOutOfBounds(vector.get(0).centerx, vector.get(0).centery);
+     repaint();
+     break;
+    case 'U':     
+     vector.get(0).centery = (vector.get(0).centery-inc);
+     vector.get(0).pcentery = vector.get(0).centery;
+     checkOutOfBounds(vector.get(0).centerx, vector.get(0).centery);
+     repaint();
+     break;
+    case 'D':     
+     vector.get(0).centery = (vector.get(0).centery+inc);
+     vector.get(0).pcentery = vector.get(0).centery;
+     checkOutOfBounds(vector.get(0).centerx, vector.get(0).centery);
+     repaint();
+     break;
+   }
+   try{
+    Thread.sleep(time);
+   }
+   catch(Exception e){}
+  }
+ }
 }
